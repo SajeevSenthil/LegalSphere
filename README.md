@@ -1,5 +1,8 @@
 # LegalSphere
 
+![Logo_Title](https://github.com/user-attachments/assets/466be4b3-42a5-4e03-99c1-d0cc883c8606)
+
+
 **Empowering women to navigate the legal system with AI-powered simplicity.**
 
 ---
@@ -38,6 +41,11 @@ LegalSphere is an AI-powered chatbot that simplifies legal information using **R
    - Users receive actionable insights and guidance tailored to their specific scenarios.
 
 ---
+
+## Work Flow
+
+![workflow](https://github.com/user-attachments/assets/a69b04ec-054d-4c12-90a9-c8605cdaa7ca)
+
 
 ## Tech Stack
 
