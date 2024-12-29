@@ -41,7 +41,7 @@ LegalSphere is an AI-powered chatbot that simplifies legal information using **R
 
 ## Tech Stack
 
-- **Frontend**: Flutter and Dart
+- **Frontend**: ![Flutter](https://upload.wikimedia.org/wikipedia/commons/1/17/Google-flutter-logo.png) Flutter and Dart
 - **AI Models**: Gemini Pro (Visual Question Answering), GROQ
 
 ---
@@ -67,13 +67,24 @@ Experience LegalSphere on your device:
 
 ## Contributors
 
-- [Siva Prasanth Sivaraj](https://github.com/SivaPrasanthSivaraj)  
-- [Suganth](https://github.com/suganth07)  
-- [Charuvarthan](https://github.com/Charuvarthan)  
+| Contributor | Profile |
+|-------------|---------|
+| ![Siva Prasanth Sivaraj](https://avatars.githubusercontent.com/SivaPrasanthSivaraj?s=100) | [Siva Prasanth Sivaraj](https://github.com/SivaPrasanthSivaraj) |
+| ![Suganth](https://avatars.githubusercontent.com/suganth07?s=100) | [Suganth](https://github.com/suganth07) |
+| ![Charuvarthan](https://avatars.githubusercontent.com/Charuvarthan?s=100) | [Charuvarthan](https://github.com/Charuvarthan) |
+| ![New Contributor](https://avatars.githubusercontent.com/new-contributor?s=100) | [New Contributor](https://github.com/new-contributor) |
 
 ---
 
-## One-Line Description
+## Challenges Faced
 
-Empowering women with AI-driven legal guidance tailored to their needs.
+- Adapting AI models to work seamlessly within Flutter.
+- Establishing robust connections between the frontend and backend.
+- Managing API key tools for invoking secure AI functionalities.
+
+---
+
+## Hackathon
+
+A hackathon project leveraging "Gender Tech and Gen AI" to empower women with accessible legal assistance.
 
