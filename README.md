@@ -64,14 +64,6 @@ LegalSphere is an AI-powered chatbot that simplifies legal information using **R
 
 ---
 
-## Download LegalSphere
-
-Experience LegalSphere on your device:
-
-- **Android**: [Download here](#)  
-- **iOS**: [Download here](#)
-
----
 
 ## Contributors
 
