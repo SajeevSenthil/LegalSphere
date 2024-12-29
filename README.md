@@ -72,7 +72,6 @@ Experience LegalSphere on your device:
 | ![Siva Prasanth Sivaraj](https://avatars.githubusercontent.com/SivaPrasanthSivaraj?s=100) | [Siva Prasanth Sivaraj](https://github.com/SivaPrasanthSivaraj) |
 | ![Suganth](https://avatars.githubusercontent.com/suganth07?s=100) | [Suganth](https://github.com/suganth07) |
 | ![Charuvarthan](https://avatars.githubusercontent.com/Charuvarthan?s=100) | [Charuvarthan](https://github.com/Charuvarthan) |
-| ![New Contributor](https://avatars.githubusercontent.com/new-contributor?s=100) | [New Contributor](https://github.com/new-contributor) |
 
 ---
 
