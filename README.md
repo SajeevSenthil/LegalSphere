@@ -81,6 +81,18 @@ LegalSphere is an AI-powered chatbot that simplifies legal information using **R
 - Establishing robust connections between the frontend and backend.
 - Managing API key tools for invoking secure AI functionalities.
 
+--
+
+## SCREEN GRAB
+ 1) image (Q&A)
+![WhatsApp Image 2024-12-30 at 03 10 30_45fcf7b5](https://github.com/user-attachments/assets/1528f77e-cb3b-43e6-b7ca-8032dca28d2f)
+
+2) Doubts
+![WhatsApp Image 2024-12-30 at 03 11 11_dff98f5b](https://github.com/user-attachments/assets/d987ae35-1c62-4b94-84c5-36768bf4d61f)
+
+
+
+
 ---
 
 ## Hackathon
