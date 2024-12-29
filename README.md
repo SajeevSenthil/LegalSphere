@@ -80,7 +80,6 @@ Experience LegalSphere on your device:
 | ![Siva Prasanth Sivaraj](https://avatars.githubusercontent.com/SivaPrasanthSivaraj?s=100) | [Siva Prasanth Sivaraj](https://github.com/SivaPrasanthSivaraj) |
 | ![Suganth](https://avatars.githubusercontent.com/suganth07?s=100) | [Suganth](https://github.com/suganth07) |
 | ![Charuvarthan](https://avatars.githubusercontent.com/Charuvarthan?s=100) | [Charuvarthan](https://github.com/Charuvarthan) |
-| ![New Contributor](https://avatars.githubusercontent.com/new-contributor?s=100) | [New Contributor](https://github.com/new-contributor) |
 
 ---
 
@@ -92,7 +91,7 @@ Experience LegalSphere on your device:
 
 ---
 
-## One-Line Description
+## Hackathon
 
-A hackathon project leveraging gender tech and generative AI to empower women with accessible legal assistance.
+A hackathon project leveraging "Gender tech and Gen AI" to empower women with accessible legal assistance.
 
