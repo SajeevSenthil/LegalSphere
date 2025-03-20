@@ -1,4 +1,8 @@
+import 'package:deepseek_client/deepseek_client.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:google_speech/generated/google/cloud/speech/v1/cloud_speech.pb.dart';
+import 'package:google_speech/google_speech.dart' as googleSpeech;
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -8,11 +12,31 @@ import 'package:groq/groq.dart';
 import 'dart:math';
 import 'package:google_cloud_translation/google_cloud_translation.dart';
 import 'package:flutter_regex/flutter_regex.dart';
+import 'package:google_speech/speech_client_authenticator.dart';
+import 'package:googleapis_auth/googleapis_auth.dart';
+import 'package:googleapis_auth/auth_io.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
+import 'package:cloud_text_to_speech/cloud_text_to_speech.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:deepseek_client/deepseek_client.dart' show DeepSeekClient;
+import 'package:http/http.dart' as http;
+
+
 
 void main() {
   // Initialize Gemini with the API key
   Gemini.init(apiKey: 'AIzaSyCm8KRWGJl7EExDiYlNwUFDNVTd_qdyXCE');
 
+    const apiKey = String.fromEnvironment('DEEPSEEK_API_KEY');
+    print("DEEPSEEK_API_KEY: $apiKey");
+    runApp(const MyApp());
+
+  // Remove this line as setToken method doesn't exist
+  // DeepSeekClient.setToken('sk-4e5423e4c25d4967ab3e80a120d22b2e');
+
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   runApp(const MyApp());
 }
 
@@ -50,6 +74,26 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Map<String, dynamic>> documents = [];
   List<Map<String, dynamic>> filteredDocuments = [];
   List<List<num>> documentVectors = [];
+  bool isRecording = false;
+  final _record = AudioRecorder();
+  String? _audioFilePath;
+  final player = AudioPlayer();
+
+  final speechToText = googleSpeech.SpeechToText.viaServiceAccount(ServiceAccount.fromString(r'''
+      {
+      "type": "service_account",
+      "project_id": "gen-lang-client-0781071786",
+      "private_key_id": "1a6f738fcd1ba0c8c2a2ec6e206281af6e41e8b4",
+      "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC75TLC4H/FKS5Q\nKQ7JBGeKVIAWk9jXfXf5bc0vVM32xRz/bET3JbTPqffkbor0/22NZ4o6k6mmUzkp\naF20IDpgHwqybq8TlzZK/EEKqNkvbmPsvOymoNP//rlfr9sSvzxfMoDPLaRiGoOV\nY6XUKUzSnKrLh/zNli/8oaFOn2Ntpw5ctFknLamHYWKUUhI+77XusVYqGWQN4Soc\npANcfPew7Lu2YIipAJNCHDdSiDoNKKS4Aagm6k/hovWd1Egbr4pNQUhwjpLWkfSC\nfuV5qPkP16SaP+Tw6i+sGUzVR7j8MZ/Y/CWdK/uck1kO7c8CxYr2RZCISkx8QrYv\n+fCI9rSFAgMBAAECggEAVbiEBwo64G0gNuv0VdsPjbltUl+THwSb1oy0fnJ3IKze\nxNzVPdfS/KazdGDGPm3FwixJkN3LGRmAy5ZUoZfOagnfbHY4o3xqBZ294qoTo6L+\nLYQnhwF6lqDUW4Y0MQJT/a5hu6M8CpHEFESI5BkPdkqJVR+uQvDQ5bWrjN4Ek4JI\nd6u10jj6H4VwNxPpvQPAV0TQ5PLmXtUgNRtl2bL7s9P3Z2M97q5UKE/PmWnz2GMA\nIpLwesr3wXyt7TmsvPkwV+c1kuZpd6vEHC+2PqoTZTYdPz9vrFRkxtlXCdwsf21o\nt+9ZwwdIRHoZWpSzf56mYaiEHhWpkP9zX61p1RboBQKBgQD7jco4LN2Ebkr/mjs+\nt/0GCrGnZOwjinJe/a6l47k/r7GH+uth0u/qr14/zEmfi2f9fd35pVSuy+nlrNsL\ngRGtB9xpBIVe0mknDLlW65ZwFfp6KQfCUmAL5Khon29sT+rBZOtFeOp95Z9fKPNf\nvnBMfUZeKHV2+RxNPG/1INa1WwKBgQC/N18TPHC6wqFppHU5xLyl8yTVH0UCXx3N\nuvtDywFn2yZMw9Weanzk5Y43a/8ucOC7LjqRXxefsaLXBVirvmppX3YJKV8AXlwX\nf1iBaKldlJ7fRZ+cDvOduCF+2YsDrxg2ZqPOB4eG6ZhWOhNIBhfnm13CWbhKcKfX\nSD8KqzQDnwKBgQDDbPom/iPx2EWHoWhZZ1K4uOIfa7ZQPiRwS6C829d09Kd1PqhS\nzS76IdeUtL6VphXZx0kFwz2wtlY1yj46B8GVrT+8jniWm9x5K9dpAYlT9p8q/Gk8\nvAZF9xQmg4ZqnQOBz0dAJ5n0yMkxgnzgavCPW9upFsF69jjYgBVyWFq1dQKBgDRq\njFBsmAZKBg88ernsOT5QaX9WhAdDZZsYr3oE8wyyIUyXvj4fuL7SQmrk2t2zKZeF\n854X8BThj97bY1Qo7WiXN3cJdTZXp2z1hqBqvUqey/IuVrNj0dohOGVaYuYOoFeB\nSVPX8onEDPNOFiz/JpxhlZEKIR+exBOahVV6WtbHAoGBAN3DcNLwPHkjeWyj1Dvj\nEnnLDbRAfNdpuqffsGOXo49WBd7Ar1mrPJvxUGIN98qV9R7o6RyUiYdoqjm9MGdF\ngrmHooLYjBqmjKXJTZa45M5kftPuuFeBW0WmnZ9pMjA20h1Uw/VtZAk7zjlzrAdG\n9+fDbVDvORR6qyMEHt+J4cH1\n-----END PRIVATE KEY-----\n",
+      "client_email": "legal-sphere@gen-lang-client-0781071786.iam.gserviceaccount.com",
+      "client_id": "115671398490113124056",
+      "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+      "token_uri": "https://oauth2.googleapis.com/token",
+      "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+      "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/legal-sphere%40gen-lang-client-0781071786.iam.gserviceaccount.com",
+      "universe_domain": "googleapis.com"
+      }
+      '''));
 
   final translator = Translation(apiKey: 'AIzaSyDUvtkOPy1QdAJYZzBVjOjBBxnBgRyii10');
 
@@ -89,45 +133,12 @@ class _ChatScreenState extends State<ChatScreen> {
     int emptyVectorsCount = documentVectors.where((vec) => vec.isEmpty).length;
     print("Number of empty vectors: $emptyVectorsCount");
 
-    _groq = Groq(
-      apiKey: "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",
-      model: "llama3-groq-70b-8192-tool-use-preview",
-    );
+    FlutterNativeSplash.remove();
 
-    _groq.startChat();
-
-    _groq.setCustomInstructionsWith(
-        '''
-      You are an expert in analyzing and providing actionable insights based on legal contexts. Your task is to identify the relevant laws under the Bharatiya Nyaya Sanhita (BNS) and the Indian Penal Code (IPC), explain them in simple terms, and, if applicable, provide detailed guidance for filing a case.
-
- Task:
-1. Applicable Laws:
-   - Identify the relevant sections under BNS and IPC that address the situation.
-   - Provide the name and section of the law.(explain the law statement in detailed way to the)
-   - Summarize the offense or legal provision in simple terms, ensuring clarity for non-legal audiences.
-   - Specify whether the offense is "Cognizable" or "Non-Cognizable."
-   - State the punishments clearly, including imprisonment terms, fines, or other penalties.
-
-2. Filing a Complaint (If Applicable):
-   - Provide a step-by-step guide for filing a legal complaint.
-   - Include necessary details such as where to report, what information/documents to prepare, and whom to contact.
-   - Provide specific links and helpline numbers, especially for cases involving women, minors, or heinous crimes.
-     - *Example Resources*:
-       - National Commission for Women (NCW): Visit [NCW Website](https://ncw.nic.in) or call 1091.
-       - Tamil Nadu Helpline: Call 1098 for immediate assistance.
-       - State-wise helpline directory: [State Helpline Directory](https://wcd.nic.in/).
-
-3. Actionable Summary:
-   - Offer actionable recommendations for safety measures, preserving evidence, and seeking justice.
-   - Provide links to legal aid organizations and non-profits for additional support.
-   - Ensure that all guidance is specific, concise, and prioritized.
-
- Important Guidelines:
-- Avoid disclaimers or generic explanations about incomplete information.
-- Ensure punishments and penalties provided are accurate and up-to-date as per Indian law.
-- Format the response clearly, using bullet points or numbered lists for ease of understanding.
-- Include helpline details for cases involving women, children, or heinous crimes.
-      '''
+    //Initialize Google TTS with the access token
+    TtsGoogle.init(
+      apiKey: "b759c9dd3c688ab5e7f22dadad252df8bdc02ff2",
+      withLogs: true,
     );
 
   }
@@ -135,7 +146,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<String> translateText(String text, String targetLanguage) async {
     try {
       final response = await translator.translate(text: text, to: targetLanguage);
-      return response.translatedText ?? text;
+      return response.translatedText;
     } catch (e) {
       print('Translation error: $e');
       return text;
@@ -156,6 +167,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _sendMessage(String prompt) async {
+
+    // final dummytext = await translateText("Hi, how are you?", 'ta');
+    // setState(() {
+    //   _messages.add({'sender': 'bot', 'text': dummytext});
+    // });
 
     final sourceLanguage = await detectLanguage(prompt);
 
@@ -179,80 +195,122 @@ class _ChatScreenState extends State<ChatScreen> {
       _selectedImage = null;
     });
 
+    setState(() {
+      _messages.add({'sender': 'bot', 'text': "Generating Response...."});
+    });
+
     String combinedPrompt = extractedText.isNotEmpty
-        ? "$extractedText $prompt"
+        ? "$extractedText $translatedPrompt"
         : translatedPrompt;
 
     // Find the best match document using cosine similarity
     final bestMatch = await _getBestMatchingDocument(combinedPrompt);
 
     print("Best Match: $bestMatch");
-    // bestMatch.then((String s){
-    //   print("Final Message");
-    //   print("$s");
-    // });
 
-    // final input_to_groq = '''
-    // You are an expert in analyzing and providing actionable insights based on legal contexts. Your task is to identify the relevant laws under the Bharatiya Nyaya Sanhita (BNS) and the Indian Penal Code (IPC), explain them in simple terms, and, if applicable, provide detailed guidance for filing a case.
-    //
-    // Current Scenario:
-    // ${bestMatch}
-    //
-    // Query:
-    // ${combinedPrompt}
-    //
-    //  Task:
-    // 1. Applicable Laws:
-    //    - Identify the relevant sections under BNS and IPC that address the situation.
-    //    - Provide the name and section of the law.(explain the law statement in detailed way to the)
-    //    - Summarize the offense or legal provision in simple terms, ensuring clarity for non-legal audiences.
-    //    - Specify whether the offense is "Cognizable" or "Non-Cognizable."
-    //    - State the punishments clearly, including imprisonment terms, fines, or other penalties.
-    //
-    // 2. Filing a Complaint (If Applicable):
-    //    - Provide a step-by-step guide for filing a legal complaint.
-    //    - Include necessary details such as where to report, what information/documents to prepare, and whom to contact.
-    //    - Provide specific links and helpline numbers, especially for cases involving women, minors, or heinous crimes.
-    //      - **Example Resources**:
-    //        - National Commission for Women (NCW): Visit [NCW Website](https://ncw.nic.in) or call 1091.
-    //        - Tamil Nadu Helpline: Call 1098 for immediate assistance.
-    //        - State-wise helpline directory: [State Helpline Directory](https://wcd.nic.in/).
-    //
-    // 3. Actionable Summary:
-    //    - Offer actionable recommendations for safety measures, preserving evidence, and seeking justice.
-    //    - Provide links to legal aid organizations and non-profits for additional support.
-    //    - Ensure that all guidance is specific, concise, and prioritized.
-    //
-    //  Important Guidelines:
-    // - Avoid disclaimers or generic explanations about incomplete information.
-    // - Ensure punishments and penalties provided are accurate and up-to-date as per Indian law.
-    // - Format the response clearly, using bullet points or numbered lists for ease of understanding.
-    // - Include helpline details for cases involving women, children, or heinous crimes.
-    // ''';
+    final custom_instr = '''
+    You are an expert in analyzing and providing actionable insights based on legal contexts. Your task is to identify the relevant laws under the Bharatiya Nyaya Sanhita (BNS) and the Indian Penal Code (IPC), explain them in simple terms, and, if applicable, provide detailed guidance for filing a case.
 
-    final input_to_groq = '''
-    Current Scenario:
-    ${bestMatch}
+       Task:
+      1. Applicable Laws:
+         - Identify the relevant sections under BNS and IPC that address the situation.
+         - Provide the name and section of the law.(explain the law statement in detailed way to the)
+         - Summarize the offense or legal provision in simple terms, ensuring clarity for non-legal audiences.
+         - Specify whether the offense is "Cognizable" or "Non-Cognizable."
+         - State the punishments clearly, including imprisonment terms, fines, or other penalties.
+      
+      2. Filing a Complaint (If Applicable):
+         - Provide a step-by-step guide for filing a legal complaint.
+         - Include necessary details such as where to report, what information/documents to prepare, and whom to contact.
+         - Provide specific links and helpline numbers, especially for cases involving women, minors, or heinous crimes.
+           - Example Resources:
+             - National Commission for Women (NCW): Visit [NCW Website](https://ncw.nic.in) or call 1091.
+             - Tamil Nadu Helpline: Call 1098 for immediate assistance.
+             - State-wise helpline directory: [State Helpline Directory](https://wcd.nic.in/).
+      
+      3. Actionable Summary:
+         - Offer actionable recommendations for safety measures, preserving evidence, and seeking justice.
+         - Provide links to legal aid organizations and non-profits for additional support.
+         - Ensure that all guidance is specific, concise, and prioritized.
+      
+       Important Guidelines:
+      - Avoid disclaimers or generic explanations about incomplete information.
+      - Ensure punishments and penalties provided are accurate and up-to-date as per Indian law.
+      - Format the response clearly, using bullet points or numbered lists for ease of understanding.
+      - Include helpline details for cases involving women, children, or heinous crimes.''';
+
+    final x = Color(0xffffffff);
+
+    final input_to_deepseek = '''
     
-    Query:
+    ${custom_instr}
+        
+    Current Scenario:
     ${combinedPrompt}
+    
+    Matching laws:
+    ${bestMatch}
     ''';
 
-    final response = await _sendMessageGroq(input_to_groq);
+    final response = await _sendMessageDeepseek(input_to_deepseek);
 
     print("Groq: $response");
 
+    print("Length: ${response.length}");
+
     print("$sourceLanguage");
 
+    final cleanedResponse = response.replaceAll(RegExp(r'[\*#]'), '');
+
+    print("cleaned: $cleanedResponse");
+
+    print("substring: ${cleanedResponse.substring(0,100)}");
+
     final finalResponse = sourceLanguage != 'en'
-        ? await translateText(response, sourceLanguage)
+        ? await translateText(cleanedResponse, sourceLanguage) //substring(0,100)
         : response;
 
-    final cleanedResponse = finalResponse.replaceAll(RegExp(r'\*'), '');
+    print("final response: $finalResponse");
+
+    // final cleanedResponse = finalResponse.replaceAll(RegExp(r'[\*#]'), '');
 
     setState(() {
-      _messages.add({'sender': 'bot', 'text': cleanedResponse});
+      _messages.removeLast();
     });
+
+    setState(() {
+      _messages.add({'sender': 'bot', 'text': finalResponse});
+    });
+
+    texttoVoice(cleanedResponse, sourceLanguage);
+  }
+
+  Future<void> texttoVoice(String s, String lang) async {
+    final voicesResponse = await TtsGoogle.getVoices();
+    final voices = voicesResponse.voices;
+
+    //Print all available voices
+    print(voices);
+
+    //Pick an English Voice
+    final voice = voicesResponse.voices
+        .where((element) => element.locale.code.startsWith("${lang}-"))
+        .toList(growable: false)
+        .first;
+
+    final ttsParams = TtsParamsGoogle(
+      voice: voice,
+      audioFormat: AudioOutputFormatGoogle.mp3,
+      text: s,
+    );
+
+    final ttsResponse = await TtsGoogle.convertTts(ttsParams);
+
+    final audioBytes = ttsResponse.audio.buffer.asUint8List();
+    print("Audio generated successfully!");
+
+    await player.play(BytesSource(audioBytes));
+
   }
 
   Future<String> _sendImageToGemini(File image) async {
@@ -315,7 +373,7 @@ class _ChatScreenState extends State<ChatScreen> {
         max_tries=max_tries-1;
       }
     }
-    print("Hi");
+    //print("Hi");
     return [];
     // print(response);
   }
@@ -366,7 +424,11 @@ class _ChatScreenState extends State<ChatScreen> {
     final queryVector = await _embedTextToVector(query);
 
     double highestSimilarity = -10000;
+    double s_highestSimilarity = -10000;
+    double t_highestSimilarity = -10000;
     int bestMatchIndex = -1;
+    int s_bestMatchIndex = -1;
+    int t_bestMatchIndex = -1;
 
     print("length : ${documentVectors.length}");
 
@@ -378,8 +440,22 @@ class _ChatScreenState extends State<ChatScreen> {
       double similarity = _cosineSimilarity(queryVector, documentVectors[i]);
       print("$i : $similarity");
       if (similarity > highestSimilarity) {
+        t_highestSimilarity = s_highestSimilarity;
+        s_highestSimilarity = highestSimilarity;
         highestSimilarity = similarity;
+        t_bestMatchIndex = s_bestMatchIndex;
+        s_bestMatchIndex = bestMatchIndex;
         bestMatchIndex = i;
+      }
+      else if (similarity > s_highestSimilarity) {
+        t_highestSimilarity = s_highestSimilarity;
+        s_highestSimilarity = similarity;
+        t_bestMatchIndex = s_bestMatchIndex;
+        s_bestMatchIndex = i;
+      }
+      else if (similarity > s_highestSimilarity) {
+        t_highestSimilarity = similarity;
+        t_bestMatchIndex = i;
       }
     }
 
@@ -388,23 +464,121 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (bestMatchIndex != -1) {
       print("Returned correctly");
-      return filteredDocuments[bestMatchIndex].toString(); // Return the best matching document text
+      return filteredDocuments[bestMatchIndex].toString() + "\n" +
+          filteredDocuments[s_bestMatchIndex].toString() + "\n" +
+          filteredDocuments[t_bestMatchIndex].toString(); // Return the best matching document text
     } else {
       print("Returned wrong 1");
       return "Not found";
     }
   }
 
-  Future<String> _sendMessageGroq(String text) async {
+  Future<String> _sendMessageDeepseek(String text) async {
     try {
-      GroqResponse response = await _groq.sendMessage(text);
-      print(response.choices.last.message.content);
-      return response.choices.first.message.content;
-    } on GroqException catch (error) {
+      // Get the API key from dart-define or use the hardcoded value as fallback
+      final apiKey = const String.fromEnvironment('DEEPSEEK_API_KEY',
+          defaultValue: 'sk-4e5423e4c25d4967ab3e80a120d22b2e');
+
+      // Create DeepSeek API URL and headers
+      final url = Uri.parse('https://api.deepseek.com/v1/chat/completions');
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $apiKey',
+      };
+
+      // Prepare request body
+      final body = jsonEncode({
+        'model': 'deepseek-chat',
+        'messages': [
+          {
+            'role': 'system',
+            'content': text
+          }
+        ],
+        'temperature': 0.7,
+        'max_tokens': 1000
+      });
+
+      // Make HTTP request
+      final response = await http.post(url, headers: headers, body: body);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['choices'][0]['message']['content'];
+      } else {
+        print('API Error: ${response.statusCode} - ${response.body}');
+        return 'Error: Failed to get response from DeepSeek API';
+      }
+    } on Exception catch (error) {
       print(error);
-      return "Groq Error";
+      return "Deepseek Error: $error";
     }
   }
+
+  Future<void> requestPermissions() async {
+    await Permission.microphone.request();
+    await Permission.storage.request();
+  }
+
+  Future<void> transcribe(String filePath) async {
+
+    final config = googleSpeech.RecognitionConfig(
+        encoding: googleSpeech.AudioEncoding.LINEAR16,
+        model: googleSpeech.RecognitionModel.basic,
+        enableAutomaticPunctuation: true,
+        sampleRateHertz: 16000,
+        languageCode: 'en-US');
+
+    final audio = await File(filePath).readAsBytes();
+    final response = await speechToText.recognize(config, audio);
+
+    final transcript = response.results
+        .map((result) => result.alternatives.first.transcript)
+        .join('\n');
+
+    setState(() {
+      _controller.text = transcript;
+    });
+  }
+
+  Future<void> _startRecording() async {
+    if (await _record.hasPermission()) {
+      Directory tempDir = await getTemporaryDirectory();
+      String tempPath = '${tempDir.path}/audio.wav';
+
+      await _record.start(
+        const RecordConfig(),
+        path: tempPath, // File path to save the recording
+      );
+
+      setState(() {
+        _audioFilePath = tempPath;
+      });
+    }
+  }
+  //
+  Future<void> _stopRecording() async {
+    final path = await _record.stop();
+    setState(() {
+      _audioFilePath = path;
+    });
+
+    if (_audioFilePath != null) {
+      await transcribe(_audioFilePath!);
+    }
+  }
+
+  void handleMicButton() async {
+    if (isRecording) {
+      final recordedFile = await _stopRecording();
+      setState(() => isRecording = false);
+
+    } else {
+      await _startRecording();
+      setState(() => isRecording = true);
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -415,7 +589,7 @@ class _ChatScreenState extends State<ChatScreen> {
             Image.asset('assets/Logo_inv.png', height: 50, width: 50),
             const SizedBox(width: 10,),
             const Text(
-              'Legal Sphere',
+              'LegalSphere',
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ],
@@ -516,6 +690,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 IconButton(
                   icon: const Icon(Icons.image, color: Colors.white),
                   onPressed: _selectImage,
+                ),
+                IconButton(
+                  icon: Icon(isRecording ? Icons.mic_off : Icons.mic),
+                  color: isRecording ? Colors.white : Colors.white,
+                  onPressed: handleMicButton,
                 ),
                 IconButton(
                   icon: const Icon(Icons.send, color: Colors.white),
