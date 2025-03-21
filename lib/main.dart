@@ -21,6 +21,13 @@ import 'package:cloud_text_to_speech/cloud_text_to_speech.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:deepseek_client/deepseek_client.dart' show DeepSeekClient;
 import 'package:http/http.dart' as http;
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 
 
 
@@ -28,9 +35,9 @@ void main() {
   // Initialize Gemini with the API key
   Gemini.init(apiKey: 'AIzaSyCm8KRWGJl7EExDiYlNwUFDNVTd_qdyXCE');
 
-    const apiKey = String.fromEnvironment('DEEPSEEK_API_KEY');
-    print("DEEPSEEK_API_KEY: $apiKey");
-    runApp(const MyApp());
+  const apiKey = String.fromEnvironment('DEEPSEEK_API_KEY');
+  print("DEEPSEEK_API_KEY: $apiKey");
+  runApp(const MyApp());
 
   // Remove this line as setToken method doesn't exist
   // DeepSeekClient.setToken('sk-4e5423e4c25d4967ab3e80a120d22b2e');
@@ -64,9 +71,101 @@ class ChatScreen extends StatefulWidget {
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
+class CustomRecordingWaveWidget extends StatefulWidget {
+  const CustomRecordingWaveWidget({super.key});
+
+  @override
+  State<CustomRecordingWaveWidget> createState() => _RecordingWaveWidgetState();
+}
+
+class _RecordingWaveWidgetState extends State<CustomRecordingWaveWidget> {
+  final List<double> _heights = [0.05, 0.07, 0.1, 0.07, 0.05];
+  Timer? _timer;
+
+  @override
+  void initState() {
+    _startAnimating();
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startAnimating() {
+    _timer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
+      setState(() {
+        _heights.add(_heights.removeAt(0));
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MediaQuery.sizeOf(context).height * 0.1,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: _heights.map((height) {
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: 20,
+            height: MediaQuery.sizeOf(context).height * height,
+            margin: const EdgeInsets.only(right: 10),
+            decoration: BoxDecoration(
+              color: Colors.blue,
+              borderRadius: BorderRadius.circular(50),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class CustomRecordingButton extends StatelessWidget {
+  const CustomRecordingButton({
+    super.key,
+    required this.isRecording,
+    required this.onPressed,
+  });
+
+  final bool isRecording;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      height: 50,
+      width: 50,
+      duration: const Duration(milliseconds: 300),
+      decoration: BoxDecoration(
+        color: isRecording ? Colors.red : Colors.blue,
+        shape: BoxShape.circle,
+      ),
+      child: InkWell(
+        onTap: onPressed,
+        child: Center( // Ensures the icon is centered
+          child: Icon(
+            isRecording ? Icons.stop : Icons.mic,
+            color: Colors.white,
+            size: 20, // Icon size
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
+  bool isRecording = false;
+  final _record = AudioRecorder();
+  String? _audioFilePath;
+  final player = AudioPlayer();
+
   final List<Map<String, dynamic>> _messages = [];
   File? _selectedImage;
   late Groq _groq;
@@ -74,12 +173,9 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Map<String, dynamic>> documents = [];
   List<Map<String, dynamic>> filteredDocuments = [];
   List<List<num>> documentVectors = [];
-  bool isRecording = false;
-  final _record = AudioRecorder();
-  String? _audioFilePath;
-  final player = AudioPlayer();
 
-  final speechToText = googleSpeech.SpeechToText.viaServiceAccount(ServiceAccount.fromString(r'''
+  final speechToText = googleSpeech.SpeechToText.viaServiceAccount(
+      ServiceAccount.fromString(r'''
       {
       "type": "service_account",
       "project_id": "gen-lang-client-0781071786",
@@ -95,7 +191,8 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       '''));
 
-  final translator = Translation(apiKey: 'AIzaSyDUvtkOPy1QdAJYZzBVjOjBBxnBgRyii10');
+  final translator = Translation(
+      apiKey: 'AIzaSyDUvtkOPy1QdAJYZzBVjOjBBxnBgRyii10');
 
   @override
   void initState() {
@@ -105,9 +202,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _initializeApp() async {
     // Load JSON file from assets
-    final jsonString = await DefaultAssetBundle.of(context).loadString('assets/train.json');
+    final jsonString = await DefaultAssetBundle.of(context).loadString(
+        'assets/train.json');
     documents = List<Map<String, dynamic>>.from(json.decode(jsonString));
-    filteredDocuments = documents.where((doc) => doc.containsKey('Description') && doc['Description'] != null).toList();
+    filteredDocuments =
+        documents.where((doc) =>
+        doc.containsKey('Description') &&
+            doc['Description'] != null).toList();
     // print(documents);
 
     print("Hi");
@@ -130,7 +231,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
     print("documents_list: $documentVectors");
 
-    int emptyVectorsCount = documentVectors.where((vec) => vec.isEmpty).length;
+    int emptyVectorsCount = documentVectors
+        .where((vec) => vec.isEmpty)
+        .length;
     print("Number of empty vectors: $emptyVectorsCount");
 
     FlutterNativeSplash.remove();
@@ -140,12 +243,12 @@ class _ChatScreenState extends State<ChatScreen> {
       apiKey: "b759c9dd3c688ab5e7f22dadad252df8bdc02ff2",
       withLogs: true,
     );
-
   }
 
   Future<String> translateText(String text, String targetLanguage) async {
     try {
-      final response = await translator.translate(text: text, to: targetLanguage);
+      final response = await translator.translate(
+          text: text, to: targetLanguage);
       return response.translatedText;
     } catch (e) {
       print('Translation error: $e');
@@ -154,7 +257,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<String> detectLanguage(String text) async {
-    if (text==''){
+    if (text == '') {
       return 'en';
     }
     try {
@@ -167,7 +270,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _sendMessage(String prompt) async {
-
     // final dummytext = await translateText("Hi, how are you?", 'ta');
     // setState(() {
     //   _messages.add({'sender': 'bot', 'text': dummytext});
@@ -264,15 +366,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
     print("cleaned: $cleanedResponse");
 
-    print("substring: ${cleanedResponse.substring(0,100)}");
+    print("substring: ${cleanedResponse.substring(0, 100)}");
 
     final finalResponse = sourceLanguage != 'en'
-        ? await translateText(cleanedResponse, sourceLanguage) //substring(0,100)
+        ? await translateText(
+        cleanedResponse, sourceLanguage) //substring(0,100)
         : response;
 
     print("final response: $finalResponse");
 
-    // final cleanedResponse = finalResponse.replaceAll(RegExp(r'[\*#]'), '');
+    //final cleanedResponse = finalResponse.replaceAll(RegExp(r'[\*#]'), '');
 
     setState(() {
       _messages.removeLast();
@@ -310,7 +413,6 @@ class _ChatScreenState extends State<ChatScreen> {
     print("Audio generated successfully!");
 
     await player.play(BytesSource(audioBytes));
-
   }
 
   Future<String> _sendImageToGemini(File image) async {
@@ -349,10 +451,10 @@ class _ChatScreenState extends State<ChatScreen> {
         images: [image.readAsBytesSync()],
       );
       var temp = result?.content?.parts?.last;
-      if(temp is TextPart){
+      if (temp is TextPart) {
         return temp.text;
       }
-      else{
+      else {
         return '';
       }
     } catch (e) {
@@ -363,14 +465,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<List<num>> _embedTextToVector(String text) async {
     int max_tries = 10;
-    while(max_tries>0) {
+    while (max_tries > 0) {
       try {
         final response = await Gemini.instance.embedContent(text);
         return response!;
       }
       catch (error) {
         print(error);
-        max_tries=max_tries-1;
+        max_tries = max_tries - 1;
       }
     }
     //print("Hi");
@@ -380,7 +482,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _selectImage() async {
     try {
-      final XFile? pickedImage = await _picker.pickImage(source: ImageSource.gallery);
+      final XFile? pickedImage = await _picker.pickImage(
+          source: ImageSource.gallery);
       if (pickedImage != null) {
         setState(() {
           _selectedImage = File(pickedImage.path);
@@ -420,7 +523,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // Find the best match document using cosine similarity
-  Future<String> _getBestMatchingDocument(String query) async{
+  Future<String> _getBestMatchingDocument(String query) async {
     final queryVector = await _embedTextToVector(query);
 
     double highestSimilarity = -10000;
@@ -433,7 +536,7 @@ class _ChatScreenState extends State<ChatScreen> {
     print("length : ${documentVectors.length}");
 
     for (int i = 1; i < documentVectors.length; i++) {
-      if(documentVectors[i].isEmpty){
+      if (documentVectors[i].isEmpty) {
         continue;
       }
       print(documentVectors[i]);
@@ -466,7 +569,8 @@ class _ChatScreenState extends State<ChatScreen> {
       print("Returned correctly");
       return filteredDocuments[bestMatchIndex].toString() + "\n" +
           filteredDocuments[s_bestMatchIndex].toString() + "\n" +
-          filteredDocuments[t_bestMatchIndex].toString(); // Return the best matching document text
+          filteredDocuments[t_bestMatchIndex]
+              .toString(); // Return the best matching document text
     } else {
       print("Returned wrong 1");
       return "Not found";
@@ -521,7 +625,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> transcribe(String filePath) async {
-
     final config = googleSpeech.RecognitionConfig(
         encoding: googleSpeech.AudioEncoding.LINEAR16,
         model: googleSpeech.RecognitionModel.basic,
@@ -543,41 +646,92 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _startRecording() async {
     if (await _record.hasPermission()) {
-      Directory tempDir = await getTemporaryDirectory();
-      String tempPath = '${tempDir.path}/audio.wav';
+      Directory appDir = await getApplicationDocumentsDirectory();
+      String filePath = '${appDir.path}/recorded_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
       await _record.start(
-        const RecordConfig(),
-        path: tempPath, // File path to save the recording
+        RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000, sampleRate: 44100),
+        path: filePath,
       );
 
       setState(() {
-        _audioFilePath = tempPath;
+        isRecording = true;
       });
-    }
-  }
-  //
-  Future<void> _stopRecording() async {
-    final path = await _record.stop();
-    setState(() {
-      _audioFilePath = path;
-    });
 
-    if (_audioFilePath != null) {
-      await transcribe(_audioFilePath!);
+      print("✅ Recording started: $filePath");
+    } else {
+      print("❌ Recording permission denied");
     }
   }
+
+
+
+
+  Future<void> _stopRecording() async {
+    String? path = await _record.stop();
+    if (path != null) {
+      setState(() {
+        _messages.add({'sender': 'user', 'path': path});  // Add user audio
+        isRecording = false;
+      });
+
+      print("✅ Recording saved: $path");
+
+      // Simulate a bot response with the default.mp3 file
+      Future.delayed(const Duration(seconds: 5), () {
+        setState(() {
+
+          _messages.add({'sender': 'bot', 'path': 'default.mp3'});
+        });
+      });
+
+    }
+  }
+
+
 
   void handleMicButton() async {
     if (isRecording) {
-      final recordedFile = await _stopRecording();
-      setState(() => isRecording = false);
-
+      await _stopRecording();
     } else {
       await _startRecording();
-      setState(() => isRecording = true);
     }
   }
+
+  void _playRecording() async {
+    if (_audioFilePath != null) {
+      await player.play(DeviceFileSource(_audioFilePath!));
+    }
+  }
+
+
+  Map<String, bool> _isPlaying = {}; // Tracks playing state for each audio
+
+  void _playAudio(String filePath) async {
+    if (_isPlaying[filePath] == true) {
+      await player.pause();
+      setState(() {
+        _isPlaying[filePath] = false; // Set to paused
+      });
+    } else {
+      await player.play(
+        filePath.contains('default.mp3')
+            ? AssetSource('default.mp3') // ✅ Play from assets
+            : DeviceFileSource(filePath), // ✅ Play from local storage
+      );
+      setState(() {
+        _isPlaying[filePath] = true; // Set to playing
+      });
+
+      // Listen for when playback completes
+      player.onPlayerComplete.listen((event) {
+        setState(() {
+          _isPlaying[filePath] = false; // Reset to paused
+        });
+      });
+    }
+  }
+
 
 
   @override
@@ -587,7 +741,7 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Row(
           children: [
             Image.asset('assets/Logo_inv.png', height: 50, width: 50),
-            const SizedBox(width: 10,),
+            const SizedBox(width: 10),
             const Text(
               'LegalSphere',
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -598,17 +752,22 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
+          if (isRecording) const CustomRecordingWaveWidget(), // Show recording animation
           Expanded(
             child: ListView.builder(
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final message = _messages[index];
+                final isPlaying = _isPlaying[message['path']] == true;
+
                 return Align(
                   alignment: message['sender'] == 'user'
                       ? Alignment.centerRight
                       : Alignment.centerLeft,
                   child: Container(
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width*0.8,),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.8,
+                    ),
                     margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
@@ -629,6 +788,32 @@ class _ChatScreenState extends State<ChatScreen> {
                           Text(
                             message['text'],
                             style: const TextStyle(color: Colors.white),
+                          ),
+                        if (message['path'] != null) // Display audio messages
+                          GestureDetector(
+                            onTap: () => _playAudio(message['path']),
+                            child: Container(
+                              margin: const EdgeInsets.only(top: 8),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: isPlaying ? Colors.green : Colors.blue, // ✅ Dynamic color change
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isPlaying ? Icons.pause : Icons.audiotrack,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    isPlaying ? "Playing..." : "Audio Message",
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                       ],
                     ),
@@ -691,9 +876,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   icon: const Icon(Icons.image, color: Colors.white),
                   onPressed: _selectImage,
                 ),
-                IconButton(
-                  icon: Icon(isRecording ? Icons.mic_off : Icons.mic),
-                  color: isRecording ? Colors.white : Colors.white,
+                CustomRecordingButton(
+                  isRecording: isRecording,
                   onPressed: handleMicButton,
                 ),
                 IconButton(
@@ -711,5 +895,19 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
+  }
+
+
+  bool isPlaying = false;
+
+  void _togglePlayback() async {
+    if (isPlaying) {
+      await player.pause();
+    } else {
+      await player.play(DeviceFileSource(_audioFilePath!));
+    }
+    setState(() {
+      isPlaying = !isPlaying;
+    });
   }
 }
