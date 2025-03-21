@@ -1,25 +1,20 @@
-import 'package:deepseek_client/deepseek_client.dart';
+// ignore_for_file: deprecated_member_use, empty_catches
+
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
-import 'package:google_speech/generated/google/cloud/speech/v1/cloud_speech.pb.dart';
 import 'package:google_speech/google_speech.dart' as googleSpeech;
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_gemini/flutter_gemini.dart';
-import 'package:groq/groq.dart';
 import 'dart:math';
 import 'package:google_cloud_translation/google_cloud_translation.dart';
-import 'package:flutter_regex/flutter_regex.dart';
 import 'package:google_speech/speech_client_authenticator.dart';
-import 'package:googleapis_auth/googleapis_auth.dart';
-import 'package:googleapis_auth/auth_io.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:cloud_text_to_speech/cloud_text_to_speech.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:deepseek_client/deepseek_client.dart' show DeepSeekClient;
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -27,20 +22,19 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:audioplayers/audioplayers.dart';
 
+AudioPlayer _audioPlayer = AudioPlayer();
+int? _currentlyPlayingIndex; // Track which audio is playing
+bool _isPlaying = false; // Track playback state
 
 
 
 void main() {
   // Initialize Gemini with the API key
-  Gemini.init(apiKey: 'AIzaSyCm8KRWGJl7EExDiYlNwUFDNVTd_qdyXCE');
+  Gemini.init(apiKey: 'YOUR_GEMINI_API_KEY');
 
-  const apiKey = String.fromEnvironment('DEEPSEEK_API_KEY');
-  print("DEEPSEEK_API_KEY: $apiKey");
   runApp(const MyApp());
-
-  // Remove this line as setToken method doesn't exist
-  // DeepSeekClient.setToken('sk-4e5423e4c25d4967ab3e80a120d22b2e');
 
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
@@ -53,7 +47,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Legal Sphere',
+      title: 'LegalSphere',
       theme: ThemeData(
         scaffoldBackgroundColor: Colors.grey[900],
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
@@ -163,12 +157,10 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   bool isRecording = false;
   final _record = AudioRecorder();
-  String? _audioFilePath;
   final player = AudioPlayer();
 
   final List<Map<String, dynamic>> _messages = [];
   File? _selectedImage;
-  late Groq _groq;
   final ImagePicker _picker = ImagePicker();
   List<Map<String, dynamic>> documents = [];
   List<Map<String, dynamic>> filteredDocuments = [];
@@ -177,22 +169,22 @@ class _ChatScreenState extends State<ChatScreen> {
   final speechToText = googleSpeech.SpeechToText.viaServiceAccount(
       ServiceAccount.fromString(r'''
       {
-      "type": "service_account",
-      "project_id": "gen-lang-client-0781071786",
-      "private_key_id": "1a6f738fcd1ba0c8c2a2ec6e206281af6e41e8b4",
-      "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC75TLC4H/FKS5Q\nKQ7JBGeKVIAWk9jXfXf5bc0vVM32xRz/bET3JbTPqffkbor0/22NZ4o6k6mmUzkp\naF20IDpgHwqybq8TlzZK/EEKqNkvbmPsvOymoNP//rlfr9sSvzxfMoDPLaRiGoOV\nY6XUKUzSnKrLh/zNli/8oaFOn2Ntpw5ctFknLamHYWKUUhI+77XusVYqGWQN4Soc\npANcfPew7Lu2YIipAJNCHDdSiDoNKKS4Aagm6k/hovWd1Egbr4pNQUhwjpLWkfSC\nfuV5qPkP16SaP+Tw6i+sGUzVR7j8MZ/Y/CWdK/uck1kO7c8CxYr2RZCISkx8QrYv\n+fCI9rSFAgMBAAECggEAVbiEBwo64G0gNuv0VdsPjbltUl+THwSb1oy0fnJ3IKze\nxNzVPdfS/KazdGDGPm3FwixJkN3LGRmAy5ZUoZfOagnfbHY4o3xqBZ294qoTo6L+\nLYQnhwF6lqDUW4Y0MQJT/a5hu6M8CpHEFESI5BkPdkqJVR+uQvDQ5bWrjN4Ek4JI\nd6u10jj6H4VwNxPpvQPAV0TQ5PLmXtUgNRtl2bL7s9P3Z2M97q5UKE/PmWnz2GMA\nIpLwesr3wXyt7TmsvPkwV+c1kuZpd6vEHC+2PqoTZTYdPz9vrFRkxtlXCdwsf21o\nt+9ZwwdIRHoZWpSzf56mYaiEHhWpkP9zX61p1RboBQKBgQD7jco4LN2Ebkr/mjs+\nt/0GCrGnZOwjinJe/a6l47k/r7GH+uth0u/qr14/zEmfi2f9fd35pVSuy+nlrNsL\ngRGtB9xpBIVe0mknDLlW65ZwFfp6KQfCUmAL5Khon29sT+rBZOtFeOp95Z9fKPNf\nvnBMfUZeKHV2+RxNPG/1INa1WwKBgQC/N18TPHC6wqFppHU5xLyl8yTVH0UCXx3N\nuvtDywFn2yZMw9Weanzk5Y43a/8ucOC7LjqRXxefsaLXBVirvmppX3YJKV8AXlwX\nf1iBaKldlJ7fRZ+cDvOduCF+2YsDrxg2ZqPOB4eG6ZhWOhNIBhfnm13CWbhKcKfX\nSD8KqzQDnwKBgQDDbPom/iPx2EWHoWhZZ1K4uOIfa7ZQPiRwS6C829d09Kd1PqhS\nzS76IdeUtL6VphXZx0kFwz2wtlY1yj46B8GVrT+8jniWm9x5K9dpAYlT9p8q/Gk8\nvAZF9xQmg4ZqnQOBz0dAJ5n0yMkxgnzgavCPW9upFsF69jjYgBVyWFq1dQKBgDRq\njFBsmAZKBg88ernsOT5QaX9WhAdDZZsYr3oE8wyyIUyXvj4fuL7SQmrk2t2zKZeF\n854X8BThj97bY1Qo7WiXN3cJdTZXp2z1hqBqvUqey/IuVrNj0dohOGVaYuYOoFeB\nSVPX8onEDPNOFiz/JpxhlZEKIR+exBOahVV6WtbHAoGBAN3DcNLwPHkjeWyj1Dvj\nEnnLDbRAfNdpuqffsGOXo49WBd7Ar1mrPJvxUGIN98qV9R7o6RyUiYdoqjm9MGdF\ngrmHooLYjBqmjKXJTZa45M5kftPuuFeBW0WmnZ9pMjA20h1Uw/VtZAk7zjlzrAdG\n9+fDbVDvORR6qyMEHt+J4cH1\n-----END PRIVATE KEY-----\n",
-      "client_email": "legal-sphere@gen-lang-client-0781071786.iam.gserviceaccount.com",
-      "client_id": "115671398490113124056",
-      "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-      "token_uri": "https://oauth2.googleapis.com/token",
-      "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-      "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/legal-sphere%40gen-lang-client-0781071786.iam.gserviceaccount.com",
-      "universe_domain": "googleapis.com"
+      "type": ".....",
+      "project_id": "..........",
+      "private_key_id": ".........",
+      "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+      "client_email": "............",
+      "client_id": "......",
+      "auth_uri": "......",
+      "token_uri": ".......",
+      "auth_provider_x509_cert_url": ".......",
+      "client_x509_cert_url": "......",
+      "universe_domain": "....."
       }
       '''));
 
   final translator = Translation(
-      apiKey: 'AIzaSyDUvtkOPy1QdAJYZzBVjOjBBxnBgRyii10');
+      apiKey: 'YOUR_GOOGLE_TRANSLATE_API_KEY');
 
   @override
   void initState() {
@@ -211,7 +203,6 @@ class _ChatScreenState extends State<ChatScreen> {
             doc['Description'] != null).toList();
     // print(documents);
 
-    print("Hi");
 
     // Generate embeddings for each document using Gemini
     documentVectors = await Future.wait(filteredDocuments.map((doc) async {
@@ -219,28 +210,20 @@ class _ChatScreenState extends State<ChatScreen> {
       // print("Description: ${doc['Description']}");
       try {
         final embedding = await _embedTextToVector(doc['Description']);
-        print("Processed embedding for: ${doc['Description']}");
         return embedding;
       } catch (e) {
-        print("Error processing document: $e");
         return <double>[]; // Handle errors gracefully
       }
     }).toList());
 
-    print("Hello");
 
-    print("documents_list: $documentVectors");
 
-    int emptyVectorsCount = documentVectors
-        .where((vec) => vec.isEmpty)
-        .length;
-    print("Number of empty vectors: $emptyVectorsCount");
 
     FlutterNativeSplash.remove();
 
     //Initialize Google TTS with the access token
     TtsGoogle.init(
-      apiKey: "b759c9dd3c688ab5e7f22dadad252df8bdc02ff2",
+      apiKey: "YOUR_API_KEY",
       withLogs: true,
     );
   }
@@ -251,7 +234,6 @@ class _ChatScreenState extends State<ChatScreen> {
           text: text, to: targetLanguage);
       return response.translatedText;
     } catch (e) {
-      print('Translation error: $e');
       return text;
     }
   }
@@ -262,26 +244,19 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     try {
       final response = await translator.detectLang(text: text);
-      return response.detectedSourceLanguage ?? 'en';
+      return response.detectedSourceLanguage;
     } catch (e) {
-      print('Language detection error: $e');
       return 'en';
     }
   }
 
   Future<void> _sendMessage(String prompt) async {
-    // final dummytext = await translateText("Hi, how are you?", 'ta');
-    // setState(() {
-    //   _messages.add({'sender': 'bot', 'text': dummytext});
-    // });
-
     final sourceLanguage = await detectLanguage(prompt);
 
     final translatedPrompt = sourceLanguage != 'en'
         ? await translateText(prompt, 'en')
         : prompt;
 
-    print("Translated: $translatedPrompt");
 
     String extractedText = '';
     if (_selectedImage != null) {
@@ -308,9 +283,8 @@ class _ChatScreenState extends State<ChatScreen> {
     // Find the best match document using cosine similarity
     final bestMatch = await _getBestMatchingDocument(combinedPrompt);
 
-    print("Best Match: $bestMatch");
 
-    final custom_instr = '''
+    final customInstr = '''
     You are an expert in analyzing and providing actionable insights based on legal contexts. Your task is to identify the relevant laws under the Bharatiya Nyaya Sanhita (BNS) and the Indian Penal Code (IPC), explain them in simple terms, and, if applicable, provide detailed guidance for filing a case.
 
        Task:
@@ -341,39 +315,32 @@ class _ChatScreenState extends State<ChatScreen> {
       - Format the response clearly, using bullet points or numbered lists for ease of understanding.
       - Include helpline details for cases involving women, children, or heinous crimes.''';
 
-    final x = Color(0xffffffff);
 
-    final input_to_deepseek = '''
+    final inputToDeepseek = '''
     
-    ${custom_instr}
+    $customInstr
         
     Current Scenario:
-    ${combinedPrompt}
+    $combinedPrompt
     
     Matching laws:
-    ${bestMatch}
+    $bestMatch
     ''';
 
-    final response = await _sendMessageDeepseek(input_to_deepseek);
+    final response = await _sendMessageDeepseek(inputToDeepseek);
 
-    print("Groq: $response");
 
-    print("Length: ${response.length}");
 
-    print("$sourceLanguage");
 
     final cleanedResponse = response.replaceAll(RegExp(r'[\*#]'), '');
 
-    print("cleaned: $cleanedResponse");
 
-    print("substring: ${cleanedResponse.substring(0, 100)}");
 
     final finalResponse = sourceLanguage != 'en'
         ? await translateText(
         cleanedResponse, sourceLanguage) //substring(0,100)
         : response;
 
-    print("final response: $finalResponse");
 
     //final cleanedResponse = finalResponse.replaceAll(RegExp(r'[\*#]'), '');
 
@@ -390,14 +357,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> texttoVoice(String s, String lang) async {
     final voicesResponse = await TtsGoogle.getVoices();
-    final voices = voicesResponse.voices;
 
     //Print all available voices
-    print(voices);
 
     //Pick an English Voice
     final voice = voicesResponse.voices
-        .where((element) => element.locale.code.startsWith("${lang}-"))
+        .where((element) => element.locale.code.startsWith("$lang-"))
         .toList(growable: false)
         .first;
 
@@ -410,7 +375,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final ttsResponse = await TtsGoogle.convertTts(ttsParams);
 
     final audioBytes = ttsResponse.audio.buffer.asUint8List();
-    print("Audio generated successfully!");
 
     await player.play(BytesSource(audioBytes));
   }
@@ -458,21 +422,19 @@ class _ChatScreenState extends State<ChatScreen> {
         return '';
       }
     } catch (e) {
-      print("Error extracting text from image: $e");
       return '';
     }
   }
 
   Future<List<num>> _embedTextToVector(String text) async {
-    int max_tries = 10;
-    while (max_tries > 0) {
+    int maxTries = 10;
+    while (maxTries > 0) {
       try {
         final response = await Gemini.instance.embedContent(text);
         return response!;
       }
       catch (error) {
-        print(error);
-        max_tries = max_tries - 1;
+        maxTries = maxTries - 1;
       }
     }
     //print("Hi");
@@ -490,7 +452,6 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       }
     } catch (e) {
-      print("Error selecting image: $e");
     }
   }
 
@@ -527,52 +488,39 @@ class _ChatScreenState extends State<ChatScreen> {
     final queryVector = await _embedTextToVector(query);
 
     double highestSimilarity = -10000;
-    double s_highestSimilarity = -10000;
-    double t_highestSimilarity = -10000;
+    double sHighestsimilarity = -10000;
     int bestMatchIndex = -1;
-    int s_bestMatchIndex = -1;
-    int t_bestMatchIndex = -1;
+    int sBestmatchindex = -1;
+    int tBestmatchindex = -1;
 
-    print("length : ${documentVectors.length}");
 
     for (int i = 1; i < documentVectors.length; i++) {
       if (documentVectors[i].isEmpty) {
         continue;
       }
-      print(documentVectors[i]);
       double similarity = _cosineSimilarity(queryVector, documentVectors[i]);
-      print("$i : $similarity");
       if (similarity > highestSimilarity) {
-        t_highestSimilarity = s_highestSimilarity;
-        s_highestSimilarity = highestSimilarity;
+        sHighestsimilarity = highestSimilarity;
         highestSimilarity = similarity;
-        t_bestMatchIndex = s_bestMatchIndex;
-        s_bestMatchIndex = bestMatchIndex;
+        tBestmatchindex = sBestmatchindex;
+        sBestmatchindex = bestMatchIndex;
         bestMatchIndex = i;
       }
-      else if (similarity > s_highestSimilarity) {
-        t_highestSimilarity = s_highestSimilarity;
-        s_highestSimilarity = similarity;
-        t_bestMatchIndex = s_bestMatchIndex;
-        s_bestMatchIndex = i;
+      else if (similarity > sHighestsimilarity) {
+        sHighestsimilarity = similarity;
+        tBestmatchindex = sBestmatchindex;
+        sBestmatchindex = i;
       }
-      else if (similarity > s_highestSimilarity) {
-        t_highestSimilarity = similarity;
-        t_bestMatchIndex = i;
+      else if (similarity > sHighestsimilarity) {
+        tBestmatchindex = i;
       }
     }
 
     // print("Best match $bestMatchIndex");
-    print("Best Match: $bestMatchIndex : ${filteredDocuments[bestMatchIndex]}");
 
     if (bestMatchIndex != -1) {
-      print("Returned correctly");
-      return filteredDocuments[bestMatchIndex].toString() + "\n" +
-          filteredDocuments[s_bestMatchIndex].toString() + "\n" +
-          filteredDocuments[t_bestMatchIndex]
-              .toString(); // Return the best matching document text
+      return "${filteredDocuments[bestMatchIndex]}\n${filteredDocuments[sBestmatchindex]}\n${filteredDocuments[tBestmatchindex]}"; // Return the best matching document text
     } else {
-      print("Returned wrong 1");
       return "Not found";
     }
   }
@@ -581,7 +529,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       // Get the API key from dart-define or use the hardcoded value as fallback
       final apiKey = const String.fromEnvironment('DEEPSEEK_API_KEY',
-          defaultValue: 'sk-4e5423e4c25d4967ab3e80a120d22b2e');
+          defaultValue: 'YOUR_API_KEY');
 
       // Create DeepSeek API URL and headers
       final url = Uri.parse('https://api.deepseek.com/v1/chat/completions');
@@ -610,11 +558,9 @@ class _ChatScreenState extends State<ChatScreen> {
         final data = jsonDecode(response.body);
         return data['choices'][0]['message']['content'];
       } else {
-        print('API Error: ${response.statusCode} - ${response.body}');
         return 'Error: Failed to get response from DeepSeek API';
       }
     } on Exception catch (error) {
-      print(error);
       return "Deepseek Error: $error";
     }
   }
@@ -658,35 +604,43 @@ class _ChatScreenState extends State<ChatScreen> {
         isRecording = true;
       });
 
-      print("✅ Recording started: $filePath");
     } else {
-      print("❌ Recording permission denied");
     }
   }
-
-
-
 
   Future<void> _stopRecording() async {
-    String? path = await _record.stop();
-    if (path != null) {
+  String? tempPath = await _record.stop(); // Stop recording
+  if (tempPath != null) {
+    // Get a directory on your laptop (Documents folder)
+    Directory downloadsDir = Directory('/storage/emulated/0/Download');
+    String newPath = '${downloadsDir.path}/recorded_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+    // Copy the recorded file to the new path
+    File recordedFile = File(tempPath);
+    await recordedFile.copy(newPath);
+
+    setState(() {
+      _messages.add({'sender': 'user', 'path': newPath});
+      isRecording = false;
+    });
+
+
+    // Show "Generating result..." message
+    setState(() {
+      _messages.add({'sender': 'bot', 'text': "Generating result..."});
+    });
+
+    // Simulate processing before bot replies with an audio
+    Future.delayed(const Duration(seconds: 5), () {
       setState(() {
-        _messages.add({'sender': 'user', 'path': path});  // Add user audio
-        isRecording = false;
+        _messages.removeWhere((msg) => msg['text'] == "Generating result...");
+        _messages.add({'sender': 'bot', 'path': 'mal.m4a'});
       });
-
-      print("✅ Recording saved: $path");
-
-      // Simulate a bot response with the default.mp3 file
-      Future.delayed(const Duration(seconds: 5), () {
-        setState(() {
-
-          _messages.add({'sender': 'bot', 'path': 'default.mp3'});
-        });
-      });
-
-    }
+    });
   }
+}
+
+
 
 
 
@@ -698,216 +652,198 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _playRecording() async {
-    if (_audioFilePath != null) {
-      await player.play(DeviceFileSource(_audioFilePath!));
-    }
-  }
 
+final _isPlaying = <String, bool>{}; // Tracks playing state for each audio
 
-  Map<String, bool> _isPlaying = {}; // Tracks playing state for each audio
+void _playAudio(String filePath) async {
+  if (_isPlaying[filePath] == true) {
+    await player.pause();
+    setState(() {
+      _isPlaying[filePath] = false; // Set to paused
+    });
+  } else {
+    await player.play(
+      filePath.contains('1.m4a')
+          ? AssetSource('1.m4a')
+          : DeviceFileSource(filePath),
+    );
+    setState(() {
+      _isPlaying[filePath] = true; // Set to playing
+    });
 
-  void _playAudio(String filePath) async {
-    if (_isPlaying[filePath] == true) {
-      await player.pause();
+    // Listen for when playback completes
+    player.onPlayerComplete.listen((event) {
       setState(() {
-        _isPlaying[filePath] = false; // Set to paused
+        _isPlaying[filePath] = false; // Reset to paused
       });
-    } else {
-      await player.play(
-        filePath.contains('default.mp3')
-            ? AssetSource('default.mp3') // ✅ Play from assets
-            : DeviceFileSource(filePath), // ✅ Play from local storage
-      );
-      setState(() {
-        _isPlaying[filePath] = true; // Set to playing
-      });
-
-      // Listen for when playback completes
-      player.onPlayerComplete.listen((event) {
-        setState(() {
-          _isPlaying[filePath] = false; // Reset to paused
-        });
-      });
-    }
+    });
   }
-
-
+}
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Image.asset('assets/Logo_inv.png', height: 50, width: 50),
-            const SizedBox(width: 10),
-            const Text(
-              'LegalSphere',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        backgroundColor: Colors.grey[900],
-      ),
-      body: Column(
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      title: Row(
         children: [
-          if (isRecording) const CustomRecordingWaveWidget(), // Show recording animation
-          Expanded(
-            child: ListView.builder(
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                final message = _messages[index];
-                final isPlaying = _isPlaying[message['path']] == true;
+          Image.asset('assets/Logo_inv.png', height: 50, width: 50),
+          const SizedBox(width: 10),
+          const Text(
+            'LegalSphere',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+      backgroundColor: Colors.grey[900],
+    ),
+    body: Column(
+      children: [
+        if (isRecording) const CustomRecordingWaveWidget(), // Show recording animation
+        Expanded(
+          child: ListView.builder(
+            itemCount: _messages.length,
+            itemBuilder: (context, index) {
+              final message = _messages[index];
+              final isPlaying = _isPlaying[message['path']] == true;
 
-                return Align(
-                  alignment: message['sender'] == 'user'
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: Container(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.8,
-                    ),
-                    margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[850],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (message['image'] != null)
-                          Image.file(
-                            message['image'],
-                            width: 100,
-                            height: 100,
-                            fit: BoxFit.cover,
-                          ),
-                        if (message['text'] != null)
-                          Text(
-                            message['text'],
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        if (message['path'] != null) // Display audio messages
-                          GestureDetector(
-                            onTap: () => _playAudio(message['path']),
-                            child: Container(
-                              margin: const EdgeInsets.only(top: 8),
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: isPlaying ? Colors.green : Colors.blue, // ✅ Dynamic color change
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isPlaying ? Icons.pause : Icons.audiotrack,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    isPlaying ? "Playing..." : "Audio Message",
-                                    style: const TextStyle(color: Colors.white),
-                                  ),
-                                ],
-                              ),
+              return Align(
+                alignment: message['sender'] == 'user'
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.8,
+                  ),
+                  margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[850],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (message['image'] != null)
+                        Image.file(
+                          message['image'],
+                          width: 100,
+                          height: 100,
+                          fit: BoxFit.cover,
+                        ),
+                      if (message['text'] != null)
+                        Text(
+                          message['text'],
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      if (message['path'] != null) // Display audio messages
+                        GestureDetector(
+                          onTap: () => _playAudio(message['path']),
+                          child: Container(
+                            margin: const EdgeInsets.only(top: 8),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: isPlaying ? Colors.green : Colors.blue, 
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isPlaying ? Icons.pause : Icons.audiotrack,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  isPlaying ? "Playing..." : "Audio Message",
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ],
                             ),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
-          if (_selectedImage != null)
-            Container(
-              margin: const EdgeInsets.all(8.0),
-              padding: const EdgeInsets.all(8.0),
-              decoration: BoxDecoration(
-                color: Colors.grey[800],
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Image.file(
-                    _selectedImage!,
-                    width: 50,
-                    height: 50,
-                    fit: BoxFit.cover,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      "Image selected",
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.cancel, color: Colors.red),
-                    onPressed: _clearSelectedImage,
-                  ),
-                ],
-              ),
-            ),
-          Padding(
+        ),
+        if (_selectedImage != null)
+          Container(
+            margin: const EdgeInsets.all(8.0),
             padding: const EdgeInsets.all(8.0),
+            decoration: BoxDecoration(
+              color: Colors.grey[800],
+              borderRadius: BorderRadius.circular(10),
+            ),
             child: Row(
               children: [
+                Image.file(
+                  _selectedImage!,
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                ),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: TextField(
-                    controller: _controller,
+                  child: Text(
+                    "Image selected",
                     style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Enter your message...',
-                      hintStyle: TextStyle(color: Colors.grey[500]),
-                      filled: true,
-                      fillColor: Colors.grey[800],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.image, color: Colors.white),
-                  onPressed: _selectImage,
-                ),
-                CustomRecordingButton(
-                  isRecording: isRecording,
-                  onPressed: handleMicButton,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.send, color: Colors.white),
-                  onPressed: () {
-                    if (_controller.text.isNotEmpty || _selectedImage != null) {
-                      _sendMessage(_controller.text);
-                      _controller.clear();
-                    }
-                  },
+                  icon: const Icon(Icons.cancel, color: Colors.red),
+                  onPressed: _clearSelectedImage,
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Enter your message...',
+                    hintStyle: TextStyle(color: Colors.grey[500]),
+                    filled: true,
+                    fillColor: Colors.grey[800],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.image, color: Colors.white),
+                onPressed: _selectImage,
+              ),
+              CustomRecordingButton(
+                isRecording: isRecording,
+                onPressed: handleMicButton,
+              ),
+              IconButton(
+                icon: const Icon(Icons.send, color: Colors.white),
+                onPressed: () {
+                  if (_controller.text.isNotEmpty || _selectedImage != null) {
+                    _sendMessage(_controller.text);
+                    _controller.clear();
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
 
   bool isPlaying = false;
 
-  void _togglePlayback() async {
-    if (isPlaying) {
-      await player.pause();
-    } else {
-      await player.play(DeviceFileSource(_audioFilePath!));
-    }
-    setState(() {
-      isPlaying = !isPlaying;
-    });
-  }
 }
