@@ -1,4 +1,4 @@
-name: legal_sphere
+name: LegalSphere
 description: "A new Flutter project."
 publish_to: 'none'
 
@@ -21,7 +21,7 @@ dependencies:
   # AI Models and NLP
   flutter_gemini: ^3.0.0
   groq: ^1.0.0
-  deepseek_client: 0.0.1 # Updated to latest
+  deepseek_client: ^0.0.1 # Updated to latest
 
   # Audio Handling
   record: ^5.2.0
@@ -41,6 +41,7 @@ dependencies:
   flutter_regex: ^0.0.3
 
   http: ^1.1.0
+  flutter_launcher_icons: ^0.13.1  # Add this line
 
 dev_dependencies:
   flutter_test:
@@ -52,6 +53,8 @@ flutter:
 
   assets:
     - assets/
+    - assets/mal.m4a
+    - assets/Logo.png
     - .env # For storing sensitive API keys
 
 flutter_native_splash:
@@ -61,3 +64,12 @@ flutter_native_splash:
   android_12:
     color: "#ffffff"
     image: assets/LogoTitle.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/Logo.png"  # Path to your new logo
+  adaptive_icon_background: "#ffffff"  # Background color (optional)
+  adaptive_icon_foreground: "assets/Logo.png"
+
+  
